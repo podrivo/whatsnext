@@ -6,8 +6,16 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("WhatsNext")
-                .font(.largeTitle.weight(.semibold))
+            HStack(spacing: 14) {
+                Image("AppMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Text("WhatsNext")
+                    .font(.largeTitle.weight(.semibold))
+            }
 
             Text("Local reminders every 2 minutes. No server, works offline after you tap Start.")
                 .foregroundStyle(.secondary)
