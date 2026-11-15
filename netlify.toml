@@ -2,6 +2,11 @@
   command = "npm run build"
   publish = ".next"
 
+# TZ / RESEND_FROM are public config (timezone + From header), not secrets.
+# Their values also appear as code fallbacks, which trips Netlify secrets scan.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "TZ,RESEND_FROM"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
