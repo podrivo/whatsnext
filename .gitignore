@@ -1,4 +1,6 @@
-node_modules/
-vapid.json
-subscriptions.json
 .DS_Store
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
