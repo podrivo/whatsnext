@@ -1,0 +1,18 @@
+{
+  "name": "whatsnext-pwa-push",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PoC: PWA Web Push notifications (iOS Home Screen + desktop Chrome)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate-vapid": "node scripts/generate-vapid.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "web-push": "^3.6.7"
+  }
+}

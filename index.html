@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1419" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WhatsNext" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;560;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>WhatsNext Push PoC</title>
+  </head>
+  <body>
+    <main>
+      <h1>WhatsNext</h1>
+      <p class="lede">Tiny Web Push PoC for iOS Home Screen PWAs (16.4+) and desktop Chrome.</p>
+
+      <div id="install-hint" class="hint" hidden>
+        <strong>Install required on iPhone</strong>
+        Safari → Share → Add to Home Screen → open from the icon. Push only works from the installed PWA, not the Safari tab.
+      </div>
+
+      <div id="status" class="status" data-kind="warn">Checking…</div>
+
+      <div class="stack">
+        <button type="button" id="btn-enable">Enable notifications</button>
+
+        <label>
+          Title
+          <input id="title" type="text" value="WhatsNext" maxlength="80" />
+        </label>
+        <label>
+          Body
+          <input id="body" type="text" value="Hello from the lock screen" maxlength="160" />
+        </label>
+
+        <button type="button" id="btn-send" class="secondary">Send test push</button>
+      </div>
+
+      <pre id="log" class="log" aria-live="polite"></pre>
+
+      <p class="note">
+        Needs HTTPS on a real device (localhost is fine for desktop Chrome). Background the app after enabling, then send — the system notification should still appear.
+      </p>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
