@@ -4,6 +4,8 @@ import type { DailyPlan, Todo } from "./types";
 export async function sendDailyEmail(opts: {
   plan: DailyPlan;
   todo: Todo | null;
+  /** When set, bypasses the once-per-day idempotency key (for manual tests). */
+  force?: boolean;
 }): Promise<{ id: string } | { error: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || "WhatsNext <onboarding@resend.dev>";
@@ -38,7 +40,11 @@ export async function sendDailyEmail(opts: {
       subject: `Next: ${opts.plan.headline}`,
       html,
     },
-    { idempotencyKey: `whatsnext-daily/${opts.plan.day}` },
+    {
+      idempotencyKey: opts.force
+        ? `whatsnext-daily/${opts.plan.day}/test-${Date.now()}`
+        : `whatsnext-daily/${opts.plan.day}`,
+    },
   );
 
   if (error) return { error: error.message };

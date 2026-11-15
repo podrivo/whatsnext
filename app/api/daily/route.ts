@@ -12,6 +12,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const force =
+      req.nextUrl.searchParams.get("force") === "1" ||
+      (await req
+        .clone()
+        .json()
+        .then((b: { force?: boolean }) => b?.force === true)
+        .catch(() => false));
+
     const day = todayKey();
     let plan = await getPlan(day);
     if (!plan) {
@@ -31,7 +39,7 @@ export async function POST(req: NextRequest) {
       ? await getTodo(plan.recommended_todo_id)
       : null;
 
-    const result = await sendDailyEmail({ plan, todo });
+    const result = await sendDailyEmail({ plan, todo, force });
     if ("error" in result) {
       return NextResponse.json(
         { error: result.error, detail: "Resend send failed" },

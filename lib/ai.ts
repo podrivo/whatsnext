@@ -3,8 +3,8 @@ import { inWorkHours, todayKey, weekdayName } from "./day";
 
 /** Groq free tier — https://console.groq.com/keys */
 const DEFAULT_BASE = "https://api.groq.com/openai/v1";
-// llama-3.3-70b-versatile is enterprise-only now; gpt-oss-20b is on the free rate-limit table
-const DEFAULT_MODEL = "openai/gpt-oss-20b";
+// Prefer Qwen: gpt-oss models burn max_tokens on hidden "reasoning" and often return empty content.
+const DEFAULT_MODEL = "qwen/qwen3.8-27b";
 
 async function chatJson(prompt: string, maxTokens: number): Promise<string> {
   const key = process.env.GROQ_API_KEY?.trim();
@@ -12,6 +12,26 @@ async function chatJson(prompt: string, maxTokens: number): Promise<string> {
 
   const base = (process.env.LLM_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
   const model = process.env.LLM_MODEL || DEFAULT_MODEL;
+  // Reasoning models need headroom so content is not truncated to empty
+  const tokenBudget = Math.max(maxTokens, 1200);
+
+  const body: Record<string, unknown> = {
+    model,
+    temperature: 0.2,
+    max_tokens: tokenBudget,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Reply with a single JSON object only. No markdown fences, no prose before or after.",
+      },
+      { role: "user", content: prompt },
+    ],
+  };
+  // Lower reasoning if the model supports it (gpt-oss family)
+  if (model.includes("gpt-oss")) {
+    body.reasoning_effort = "low";
+  }
 
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
@@ -19,19 +39,7 @@ async function chatJson(prompt: string, maxTokens: number): Promise<string> {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "You reply with valid JSON only. No markdown.",
-        },
-        { role: "user", content: prompt },
-      ],
-    }),
+    body: JSON.stringify(body),
   });
 
   const raw = await res.text();
@@ -39,16 +47,42 @@ async function chatJson(prompt: string, maxTokens: number): Promise<string> {
     throw new Error(`LLM HTTP ${res.status}: ${raw.slice(0, 400)}`);
   }
 
-  let data: { choices?: { message?: { content?: string } }[] };
+  let data: {
+    choices?: {
+      message?: { content?: string | null; reasoning?: string | null };
+      finish_reason?: string;
+    }[];
+  };
   try {
     data = JSON.parse(raw) as typeof data;
   } catch {
-    throw new Error(`LLM returned non-JSON: ${raw.slice(0, 200)}`);
+    throw new Error(`LLM returned non-JSON envelope: ${raw.slice(0, 200)}`);
   }
 
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error("LLM returned empty content");
-  return text;
+  const message = data.choices?.[0]?.message;
+  const text = message?.content?.trim() || "";
+  if (text) return text;
+
+  // Last resort: some reasoning models only leave JSON in the reasoning field
+  const fromReasoning = extractJsonObject(message?.reasoning || "");
+  if (fromReasoning) return fromReasoning;
+
+  throw new Error(
+    `LLM returned empty content (finish=${data.choices?.[0]?.finish_reason ?? "?"}, model=${model})`,
+  );
+}
+
+function extractJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  const slice = text.slice(start, end + 1);
+  try {
+    JSON.parse(slice);
+    return slice;
+  } catch {
+    return null;
+  }
 }
 
 export function shouldSkipDecompose(todo: {
@@ -82,12 +116,23 @@ export async function decomposeTodo(todo: {
   estimate_minutes?: number | null;
   importance: number;
 }): Promise<DecomposeResult> {
-  const prompt = `You break work into smaller next actions.
+  const prompt = `Break a todo into real next actions for a personal daily planner.
 Return ONLY JSON: {"shouldSplit":boolean,"reason":string,"subtasks":[{"title":string,"estimateMinutes":number,"importance":number}]}
-Rules:
-- Prefer shouldSplit=true when the task has clear prep / do / cleanup (or gather tools / do work / put away) steps — including household chores.
-- shouldSplit=false only for a single atomic action with no useful smaller steps.
-- Cap 2-5 subtasks. importance 1-5. Titles imperative, short, same language as the task.
+
+Each subtask must be something worth putting on today's list by itself:
+- Concrete, actionable, same language as the task
+- At least ~15 minutes of focused work (estimateMinutes >= 15)
+- A person could do it as "what's next" without it feeling trivial
+
+Do NOT create subtasks that are:
+- Tiny wrap-ups implied by finishing the work (put tools away, guardar ferramentas, limpar a bagunça, tidy up, put ladder back)
+- Generic prep that takes under 15 min (get cloth, open window) unless that prep is the hard part
+- Restate the parent with different words
+
+Fold prep and cleanup into the main work steps instead of separate items.
+Split only when there are 2–4 meaningfully different chunks (e.g. buy materials vs install; clear furniture vs wash ceiling; research vs call vs book).
+If the parent is already one sitting of work, set shouldSplit=false.
+importance 1-5. Cap 2-4 subtasks.
 
 Task title: ${todo.title}
 Notes: ${todo.notes || "(none)"}
@@ -95,11 +140,48 @@ Estimate minutes: ${todo.estimate_minutes ?? "unknown"}
 Importance: ${todo.importance}`;
 
   const text = await chatJson(prompt, 600);
-  return parseJson<DecomposeResult>(text, {
+  const parsed = parseJson<DecomposeResult>(text, {
     shouldSplit: false,
     reason: "parse_failed",
     subtasks: [],
   });
+
+  const usable = filterSubtasks(parsed.subtasks);
+  if (!parsed.shouldSplit || usable.length < 2) {
+    return {
+      shouldSplit: false,
+      reason:
+        usable.length < 2 && parsed.shouldSplit
+          ? "subtasks too trivial after filter"
+          : parsed.reason || "kept as single task",
+      subtasks: [],
+    };
+  }
+  return { ...parsed, shouldSplit: true, subtasks: usable };
+}
+
+/** Drop micro wrap-ups the model still sneaks in. */
+function filterSubtasks(
+  subtasks: DecomposeResult["subtasks"],
+): DecomposeResult["subtasks"] {
+  const trivial =
+    /\b(guardar|guardar ferramentas|put away|put back|tidy|arrumar ferramentas|limpar (a )?bagunça|clean up|cleanup|recoger|guardar escada|put tools|wash hands|lavar as m[aã]os)\b/i;
+
+  return subtasks
+    .map((s) => ({
+      ...s,
+      title: (s.title || "").trim(),
+      estimateMinutes: s.estimateMinutes ?? null,
+    }))
+    .filter((s) => s.title.length >= 8)
+    .filter((s) => !trivial.test(s.title))
+    .filter((s) => s.estimateMinutes == null || s.estimateMinutes >= 15)
+    .slice(0, 4)
+    .map((s) => ({
+      title: s.title,
+      estimateMinutes: s.estimateMinutes ?? undefined,
+      importance: s.importance,
+    }));
 }
 
 export async function fetchWeatherLine(): Promise<string> {
