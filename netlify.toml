@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  directory = "netlify/functions"
+
+# 11:00 UTC ≈ morning America/Sao_Paulo (adjust if needed)
+[functions."daily-cron"]
+  schedule = "0 11 * * *"
