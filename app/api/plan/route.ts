@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
         recommended_todo_id: next?.id ?? null,
         headline: next?.title ?? "Inbox zero",
         rationale: next
-          ? "Next open task after you marked the last one done."
-          : "Nothing left open.",
+          ? "Here’s what to pick up next."
+          : "You’re clear — nothing open right now.",
         context_summary: plan?.context_summary ?? "",
         email_id: plan?.email_id ?? null,
       });

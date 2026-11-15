@@ -15,22 +15,6 @@
   font-weight: 600;
 }
 
-.title {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(2rem, 5vw, 2.75rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  color: #1c1917;
-}
-
-.lede {
-  color: #57534e;
-  font-size: 1.05rem;
-  line-height: 1.5;
-  max-width: 36em;
-}
-
 .card {
   margin-top: 8px;
   padding: 20px 0 8px;
@@ -97,6 +81,22 @@
   color: #b91c1c;
   padding: 4px 8px;
   font-size: 0.8rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.item:hover .danger,
+.item:focus-within .danger {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .danger {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .sectionTitle {

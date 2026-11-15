@@ -116,23 +116,23 @@ export async function decomposeTodo(todo: {
   estimate_minutes?: number | null;
   importance: number;
 }): Promise<DecomposeResult> {
-  const prompt = `Break a todo into real next actions for a personal daily planner.
+  const prompt = `Break a todo into small next actions for a personal daily planner.
 Return ONLY JSON: {"shouldSplit":boolean,"reason":string,"subtasks":[{"title":string,"estimateMinutes":number,"importance":number}]}
 
-Each subtask must be something worth putting on today's list by itself:
-- Concrete, actionable, same language as the task
-- At least ~15 minutes of focused work (estimateMinutes >= 15)
-- A person could do it as "what's next" without it feeling trivial
+Each subtask = ONE sitting of focused work:
+- Same language as the task
+- estimateMinutes between 15 and 45 (never over 45)
+- One clear outcome you could finish before a break
+- Small enough that "do this next" feels easy to start
 
-Do NOT create subtasks that are:
-- Tiny wrap-ups implied by finishing the work (put tools away, guardar ferramentas, limpar a bagunça, tidy up, put ladder back)
-- Generic prep that takes under 15 min (get cloth, open window) unless that prep is the hard part
-- Restate the parent with different words
+Good (software): "listar campos da receita no papel", "criar componente da lista vazia", "ligar fetch da API na lista"
+Bad (too big): "implementar tela principal e lógica de listagem", "criar tela de detalhes e formulário"
 
-Fold prep and cleanup into the main work steps instead of separate items.
-Split only when there are 2–4 meaningfully different chunks (e.g. buy materials vs install; clear furniture vs wash ceiling; research vs call vs book).
-If the parent is already one sitting of work, set shouldSplit=false.
-importance 1-5. Cap 2-4 subtasks.
+Good (chores): "proteger o piso e móveis", "lavar metade do teto"
+Bad: whole-room features as one step; tiny wrap-ups (guardar ferramentas, tidy up)
+
+Do NOT invent separate prep/cleanup micro-tasks. Prefer 2–4 chunks. If already one sitting, shouldSplit=false.
+importance 1-5.
 
 Task title: ${todo.title}
 Notes: ${todo.notes || "(none)"}
@@ -171,15 +171,19 @@ function filterSubtasks(
     .map((s) => ({
       ...s,
       title: (s.title || "").trim(),
-      estimateMinutes: s.estimateMinutes ?? null,
+      estimateMinutes:
+        s.estimateMinutes == null
+          ? 30
+          : Math.min(45, Math.max(15, s.estimateMinutes)),
     }))
     .filter((s) => s.title.length >= 8)
     .filter((s) => !trivial.test(s.title))
-    .filter((s) => s.estimateMinutes == null || s.estimateMinutes >= 15)
+    // Reject oversized "whole feature" titles (rough heuristic)
+    .filter((s) => s.title.split(/\s+/).length <= 12)
     .slice(0, 4)
     .map((s) => ({
       title: s.title,
-      estimateMinutes: s.estimateMinutes ?? undefined,
+      estimateMinutes: s.estimateMinutes,
       importance: s.importance,
     }));
 }
@@ -256,7 +260,12 @@ export async function recommendNext(
 
   const prompt = `Pick the single best next todo for right now.
 Return ONLY JSON: {"todoId":string,"headline":string,"rationale":string}
-Prefer high importance, tasks that fit work-hours bias when workHours=true (work-ish first), and prefer concrete child tasks over vague parents when both are open.
+
+headline: short human title (can match the todo title).
+rationale: 1–2 friendly sentences to the user about why this is a good next step now.
+Write like a calm coach. Never mention internal fields, variable names, scores, flags, or system context (no "importance", "workHours", "candidates", "child task", "fallback").
+
+Prefer higher priority, concrete child tasks over vague parents, and work-ish tasks during work hours.
 Context: ${contextSummary}
 Todos:
 ${list}`;
@@ -273,7 +282,9 @@ ${list}`;
       return {
         todoId: match.id,
         headline: parsed.headline?.trim() || match.title,
-        rationale: parsed.rationale?.trim() || "Best fit for today.",
+        rationale: humanizeRationale(
+          parsed.rationale?.trim() || "A clear next step you can finish soon.",
+        ),
         contextSummary,
       };
     }
@@ -287,9 +298,20 @@ ${list}`;
   return {
     todoId: fallback.id,
     headline: fallback.title,
-    rationale: "Highest importance open task (model fallback).",
+    rationale: "A solid next step from your open list.",
     contextSummary,
   };
+}
+
+function humanizeRationale(text: string): string {
+  if (
+    /\b(workHours|importance|candidates|todoId|fallback|parent_id|estimate_minutes)\b/i.test(
+      text,
+    )
+  ) {
+    return "A clear next step you can make progress on now.";
+  }
+  return text;
 }
 
 function parseJson<T>(text: string, fallback: T): T {

@@ -165,12 +165,6 @@ export default function HomePage() {
         </button>
       </div>
 
-      <h1 className={styles.title}>What&apos;s next</h1>
-      <p className={styles.lede}>
-        One daily recommendation from your list, weather, and the day of the
-        week.
-      </p>
-
       {error && <p className={styles.error}>{error}</p>}
       {info && <p className={styles.info}>{info}</p>}
 
@@ -180,15 +174,9 @@ export default function HomePage() {
         ) : plan ? (
           <>
             <h2 className={styles.headline}>{plan.headline}</h2>
-            <p className={styles.rationale}>{plan.rationale}</p>
-            {planTodo && (
-              <p className={styles.meta}>
-                {planTodo.title}
-                {planTodo.estimate_minutes
-                  ? ` · ~${planTodo.estimate_minutes} min`
-                  : ""}
-                {` · importance ${planTodo.importance}`}
-              </p>
+            <p className={styles.rationale}>{displayRationale(plan.rationale)}</p>
+            {planTodo?.estimate_minutes != null && (
+              <p className={styles.meta}>~{planTodo.estimate_minutes} min</p>
             )}
             <div className={styles.row}>
               <button
@@ -263,6 +251,17 @@ function formatApiError(
   return parts.join(" — ");
 }
 
+function displayRationale(text: string): string {
+  if (
+    /\b(workHours|importance|candidates|todoId|fallback|parent_id|estimate_minutes|Highest importance)\b/i.test(
+      text,
+    )
+  ) {
+    return "A clear next step you can make progress on now.";
+  }
+  return text;
+}
+
 function TodoBranch({
   todo,
   childTodos,
@@ -290,10 +289,9 @@ function TodoBranch({
         />
         <div className={styles.itemBody}>
           <div className={styles.itemTitle}>{todo.title}</div>
-          <div className={styles.itemMeta}>
-            importance {todo.importance}
-            {todo.estimate_minutes ? ` · ${todo.estimate_minutes}m` : ""}
-          </div>
+          {todo.estimate_minutes != null && (
+            <div className={styles.itemMeta}>~{todo.estimate_minutes} min</div>
+          )}
         </div>
         <button
           type="button"
@@ -318,10 +316,11 @@ function TodoBranch({
           />
           <div className={styles.itemBody}>
             <div className={styles.itemTitle}>{child.title}</div>
-            <div className={styles.itemMeta}>
-              importance {child.importance}
-              {child.estimate_minutes ? ` · ${child.estimate_minutes}m` : ""}
-            </div>
+            {child.estimate_minutes != null && (
+              <div className={styles.itemMeta}>
+                ~{child.estimate_minutes} min
+              </div>
+            )}
           </div>
           <button
             type="button"
