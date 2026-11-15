@@ -1,9 +1,6 @@
 const statusEl = document.getElementById("status");
 const installHint = document.getElementById("install-hint");
 const btnEnable = document.getElementById("btn-enable");
-const btnSend = document.getElementById("btn-send");
-const titleInput = document.getElementById("title");
-const bodyInput = document.getElementById("body");
 const logEl = document.getElementById("log");
 
 function log(msg) {
@@ -39,35 +36,33 @@ function urlBase64ToUint8Array(base64String) {
 
 async function refreshStatus() {
   if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-    setStatus("Push not supported in this browser", "denied");
+    setStatus("Push not supported here", "denied");
     btnEnable.disabled = true;
-    return null;
+    return;
   }
 
   if (Notification.permission === "denied") {
     setStatus("Notifications denied — reset in Settings", "denied");
-    return null;
+    return;
   }
 
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
 
   if (sub) {
-    setStatus("Subscribed", "ok");
-    return sub;
+    setStatus("On — random phrase every 2 min", "ok");
+    return;
   }
 
-  if (Notification.permission === "granted") {
-    setStatus("Permission granted — not subscribed yet", "warn");
-  } else {
-    setStatus("Not subscribed", "warn");
-  }
-  return null;
+  setStatus(
+    Notification.permission === "granted" ? "Permission ok — tap Enable" : "Not enabled yet",
+    "warn"
+  );
 }
 
 async function enableNotifications() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    log("PushManager unavailable. On iPhone: install to Home Screen first (iOS 16.4+).");
+  if (!("PushManager" in window)) {
+    log("On iPhone: install to Home Screen first (iOS 16.4+).");
     setStatus("Push unavailable — install PWA", "denied");
     return;
   }
@@ -75,13 +70,10 @@ async function enableNotifications() {
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     setStatus("Notifications denied", "denied");
-    log(`Permission: ${permission}`);
     return;
   }
 
-  const keyRes = await fetch("/api/vapid-public-key");
-  const { publicKey } = await keyRes.json();
-
+  const { publicKey } = await (await fetch("/api/vapid-public-key")).json();
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
@@ -99,36 +91,16 @@ async function enableNotifications() {
   const saved = await saveRes.json();
   if (!saveRes.ok) throw new Error(saved.error || "Failed to save subscription");
 
-  setStatus("Subscribed", "ok");
-  log(`Subscription saved (server has ${saved.count})`);
-}
-
-async function sendTestPush() {
-  const res = await fetch("/api/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: titleInput.value.trim() || "WhatsNext",
-      body: bodyInput.value.trim() || "Test push from the PoC server",
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    log(`Send failed: ${data.error || res.status}`);
-    return;
-  }
-  log(`Sent ${data.sent}, failed ${data.failed}`);
+  setStatus("On — random phrase every 2 min", "ok");
+  log("Subscribed. First phrase should arrive now; then every 2 minutes.");
 }
 
 async function init() {
-  if (isIos() && !isStandalone()) {
-    installHint.hidden = false;
-  }
+  if (isIos() && !isStandalone()) installHint.hidden = false;
 
   if (!("serviceWorker" in navigator)) {
     setStatus("Service workers unsupported", "denied");
     btnEnable.disabled = true;
-    btnSend.disabled = true;
     return;
   }
 
@@ -153,17 +125,6 @@ async function init() {
     } finally {
       btnEnable.disabled = false;
       await refreshStatus();
-    }
-  });
-
-  btnSend.addEventListener("click", async () => {
-    btnSend.disabled = true;
-    try {
-      await sendTestPush();
-    } catch (err) {
-      log(`Send error: ${err.message}`);
-    } finally {
-      btnSend.disabled = false;
     }
   });
 }
