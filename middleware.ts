@@ -12,7 +12,8 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
-    pathname.startsWith("/api/daily")
+    pathname.startsWith("/api/daily") ||
+    pathname.startsWith("/api/resend/webhook")
   ) {
     return withRobots(NextResponse.next());
   }
