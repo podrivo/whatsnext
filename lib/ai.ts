@@ -224,13 +224,16 @@ export type RecommendResult = {
 
 export async function recommendNext(
   openTodos: Todo[],
+  opts?: { excludeIds?: string[] },
 ): Promise<RecommendResult> {
   const weather = await fetchWeatherLine();
   const day = todayKey();
   const weekday = weekdayName();
   const work = inWorkHours();
+  const excluded = new Set(opts?.excludeIds ?? []);
 
   const candidates = openTodos
+    .filter((t) => !excluded.has(t.id))
     .filter((t) => !t.parent_id || openTodos.some((p) => p.id === t.parent_id))
     .slice(0, 12);
 

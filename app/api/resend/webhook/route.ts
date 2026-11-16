@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { handleInboundEmail } from "@/lib/inbound";
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -35,14 +36,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  // Ack only for now — reply → new-task handling comes next.
   if (event.type === "email.received") {
-    console.log("resend email.received", {
-      emailId: event.data.email_id,
-      from: event.data.from,
-      to: event.data.to,
-      subject: event.data.subject,
-    });
+    try {
+      const result = await handleInboundEmail(event.data.email_id);
+      console.log("resend inbound", event.data.email_id, result);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (e) {
+      console.error("resend inbound failed", e);
+      // Ack so Resend does not retry forever on app bugs
+      return NextResponse.json({
+        ok: false,
+        error: e instanceof Error ? e.message : "inbound failed",
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
