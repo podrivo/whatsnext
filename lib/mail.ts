@@ -28,7 +28,7 @@ export async function sendDailyEmail(opts: {
       <h1 style="font-size: 22px; margin: 8px 0 12px;">${escapeHtml(opts.plan.headline)}</h1>
       <p><strong>${escapeHtml(title)}</strong>${estimate ? ` · ${escapeHtml(estimate)}` : ""}</p>
       <p style="color: #444;">${escapeHtml(opts.plan.rationale)}</p>
-      <p style="font-size: 13px; color: #888;">Reply <em>skip</em> / <em>too easy</em> for another task, or <em>done</em> if you finished it.</p>
+      <p style="font-size: 13px; color: #888;">Reply to this email: <em>skip</em> / <em>too easy</em> / anything → new task; <em>done</em> → marks current done, then new task.</p>
       ${link}
     </div>
   `.trim();
